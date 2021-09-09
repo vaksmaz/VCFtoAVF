@@ -1,0 +1,3 @@
+Pro01,Father01,Mother01	Proband1,Father1,Mother1
+Pro02,Father02,Mother02	Proband2,Father2,Mother2
+Pro03,Father03,Broth03,Moth031	Proband3,Father3,Brother3,Mother03
