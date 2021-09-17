@@ -822,7 +822,7 @@ if ($shortfl) {
 	print $out "$h{IDsWithAltAllele}	$h{Hugosymbol}	$h{LocusAlleles}	" . 
 	"$h{Denovo}	$h{Annotation}	$h{HGVSc}	$h{HGVSp}	$h{LLPCallfinal}	" . 
 	"$h{Reasoningforcall}	$h{InterVarrecountresult}	$h{Hyperlink}	" .
-	"$h{GeneID}	$h{FeatureID}";
+	"$h{GeneID}	$h{FeatureID}\n";
 	
 		
 	}
