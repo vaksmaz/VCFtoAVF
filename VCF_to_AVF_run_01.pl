@@ -863,6 +863,7 @@ if ($snpSep) {
 	
 	print "\n\n$highCount  --- High count numb of indv\n\n";
 	$cases = "";
+	
 	for ($ci;$ci < $highCount;$ci++) {
 		$c++;
 		$cases = $cases."	Sub$c.ID	Sub$c.note	Ind.$c.NormalAllele1	Ind.$c.NormalAllele2	Ind.$c.genotype	Ind.$c.Allele1Depth	Ind.$c.Allele2Depth";		
