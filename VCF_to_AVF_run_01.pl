@@ -244,7 +244,7 @@ if (!defined $snpeff_info ) {
 
 
 my ($highCount,@fam,@famRelat,$famCount,@allFams,@fullFamFl,$count);
-
+	
 	if ($snpSepfl eq "NA" and $name eq "NA") {
 		$name = $vcf_info;
 		$name  =~ s/#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	//;
@@ -491,7 +491,7 @@ $header =~ s/\n//g;
 ###################### print header
 
 # print ClinVar header Info
-my $clinvHeader = "#VariationID	Hyperlink	Evidence_of_P/LP	New_ClinSig_Call	Call_descrip	Alt_ClinSig_call	Alt_Call_descrip	Alternant_flag_ExpertPanel	Alternant_flag_Badge	Alternant_flag_NonBadge	BadgeLabClinSig=Num	ReviewPanle=Num	NonBadgeLabClinSig=Num";
+my $clinvHeader = "#VariationID	Hyperlink	ClinVar_Stars	New_ClinSig_Call	Call_descrip	Alt_ClinSig_call	Alt_Call_descrip	Alternant_flag_ExpertPanel	Alternant_flag_Badge	Alternant_flag_NonBadge	BadgeLabClinSig=Num	ReviewPanle=Num	NonBadgeLabClinSig=Num";
 
 # print InterVar and the rest of the header Info
 
@@ -835,7 +835,7 @@ close $out;
 ################################## Separated by variant #######################
 
 
-
+###### Getting the snp information by family - based on the proband (the first individual in the line (input text file))
 
 if ($snpSep) {
 
@@ -852,15 +852,15 @@ if ($snpSep) {
 	$count = 0;
 	
 	foreach $k (@l) {
-		if ($k =~ /InterVarSupport/) {$intvSupp = $count;}
+		if ($k =~ /InterVarSupport/) {$intvSupp = $count;}  # number of individuals in the largest family group
 		elsif ($k =~ /Denovoinfo/) {$Denvinfo = $count;}
-	$count++;
+		$count++;
 	}
 	print "\n\n	Counts for header	$intvSupp	$Denvinfo\n\n";
 	my $ci = 0;
 	$c = 0;
 	
-	
+	if (!defined $highCount ) {$highCount = 1;}  
 	print "\n\n$highCount  --- High count numb of indv\n\n";
 	$cases = "";
 	
