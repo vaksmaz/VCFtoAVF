@@ -151,12 +151,12 @@ if ($geturl) {
 
 # Reset_submission_summery_matrix.step1.pl - first part
 
-$cmd = "$Bin/Reset_submission_summery_matrix.step1.pl $Sub1";
+$cmd = "perl $Bin/Reset_submission_summery_matrix.step1.pl $Sub";
 print "\n\n	Running command ...........\n	$cmd\n\n";
 system("$cmd");
 
 
-$cmd = "$Bin/ClinVarVCF_restructure_part2.pl /$Sub1.Re_assessed.$today.txt $clvar";
+$cmd = "perl $Bin/ClinVarVCF_restructure_part2.pl /$Sub1.Re_assessed.$today.txt $clvar";
 print "\n\n	Running command ...........\n	$cmd\n\n";
 system("$cmd");
 
