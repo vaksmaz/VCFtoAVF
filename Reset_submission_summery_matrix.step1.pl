@@ -27,6 +27,16 @@ my $today = strftime "%m-%d-%Y", localtime; # today's date-on output
 #my $filename = "/Users/vaksmanz/Desktop/database_info/NewClinVar/submission_summary.txt.gz"; ## intervar file
 
 
+
+
+$filename = "$Bin/VarMod/badgeList";  #Set Badge labs
+
+$badgeList = split "\n", `cat $Bin/VarMod/badgeList`;
+$badgeList =~ s/\n//g;
+
+
+
+
 my $filename = $ARGV[0]; #Submission Summary file 
 
 my $outfile =  "$Bin/submission_summary.Re_assessed.$today.txt";
@@ -151,8 +161,11 @@ sub Get_badge_info () {
 		next if $sig[0] < 20099999 and $sig[0] > 1;
 		next if $sig[0] =~ /provided|Provided|not provided/;
 		### Collect badge lab info
-		if ($ln =~ /Ambry|ARUP|Athena Diagnostics|Children's Hospital of Chicago|Robert H. Lurie|Children's Mercy Hospital|Color|GeneDx|GeneKor|Illumina|Integrated Genetics\/Laboratory Corporation of America|Invitae|Myriad Women's Health|Partners Laboratory for Molecular Medicine|Quest Diagnostics|University of Chicago/
-		) {				
+		#if ($ln =~ /Ambry|ARUP|Athena Diagnostics|Children's Hospital of Chicago|Robert H. Lurie|Children's Mercy Hospital|Color|GeneDx|GeneKor|Illumina|Integrated Genetics\/Laboratory Corporation of America|Invitae|Myriad Women's Health|Partners Laboratory for Molecular Medicine|Quest Diagnostics|University of Chicago/
+		if ($ln =~ /$badgeList/
+		) {	
+
+					
 			my $set;
 			$iSig{$sig[1]}{$cnt}++;
 			$iSig1{$sig[1]}{$di[0]}{$sig[0]} = $sig[0]; # get dates and disease

@@ -27,6 +27,7 @@ my $python = "python";
 my $dbnsfp = "dbnsfp35a";
 my $snpSepfl = "NA";
 
+
 GetOptions(
 	"h|?|help"	=> \$helpFlag,
 	"vcf=s"	=> \$vcf, # Normal VCF
@@ -37,16 +38,16 @@ GetOptions(
 	"o=s" => \$output, #output
 	"minDP=i" => \$minDepth,
 	"DB=s" => \$database, # annovarDB
-	#"tumor=s" => \$tumor, # annovarDB
-	"AnnovFL=s" => \$vcfAnnov, # annovarDB
-	"IntervFL=s" => \$vcfInterV, # annovarDB
-	"clinvarL=s" => \$clinv, # annovarDB
+	"AnnovFL=s" => \$vcfAnnov, # Annovar file
+	"IntervFL=s" => \$vcfInterV, # Intervar file
+	"clinvarL=s" => \$clinv, # ClinVar file
 	"vep=s" => \$vep, # annovarDB
 	"python=s" => \$python, # python2
 	"dbnsfp=s" => \$dbnsfp, #dbnsfp version
 	"short_fl"	=> \$shortfl,    #Condensed output
 	"snpSepFL=s"	=> \$snpSepfl,    #Breakdown file
 	"snpSep"	=> \$snpSep,    #Breakdown file
+	"KeepTemp"	=> \$KeepFold,    #Breakdown file
 	
 ) || help(1);
 
@@ -60,16 +61,16 @@ sub help{
 	and is currently set up to use HG19 or HG38. A more formal tool to use with other annotation references 
 	is currently in progress. Also, this has to be used on respublica, again a more formal method will be completed in time.
 	
-	This software requires other programs - ANNOVAT and InterVar
+	This software requires other programs - ANNOVAR and InterVar
 	
 	To update ANNOVAR and InterVar go to their respective websites. 
+	
+	This code requires SNPeff to be run on your file -- https://pcingola.github.io/SnpEff/
 
 	";
 
-	print STDERR " Usage: $0  -vcf <vcf>  options [ -m <min depth> -s <Normal/Tumor>]ll command> ]\n\n";
-	print STDERR "  ex 1) $0 -vcf your.vcf -tumor your.tumor.vcf -b HG38";
-	#print STDERR "  ex 2) $0 -o NBL_cases -b All_NBL_Omni -p /home/dir/plink1.9/plink -hm /5home/dir/hapmap_exp/hapmap.hg19.consensus.qc -a /home/dir/hapmap_exp/hapmap_ancestry_info.txt\n";
-
+	print STDERR " Usage: $0  -vcf <vcf>  [options] \n\n";
+	print STDERR " Exp 1) $0 -vcf your.vcf -b HG38 -o output -snpSep -snpSepFL yourSet.txt ......";
 
 	print STDERR "
 		------------------------------------
@@ -94,14 +95,11 @@ sub help{
      		if you want id 2 to be the proband and 1 to be parent list them as 
      		example  -SubTot 1 -ids id2,id1,id4,id3  - -- means 
      
-    -rel - relation for each one, in the ID;s order     
-    
-    -minDP [integer] - minimum depth for output.
+    -rel - relation for each one, in the IDs order     
     
     -DB [string] - Database for Annovar files. Default downloaded
     
     -Anno [string] - AnnoVar to be used. Default downloaded
-    
     
     -AnnovFL [string] - use only if you already ran annovar and want to bypass it. This flag will stop Annovar from running.
     
@@ -117,6 +115,8 @@ sub help{
         
     -snpSepFL [string] - The file that is supplied with family info
     	format for File:
+    
+    -KeepTemp - Do not complete cleanup - NOT RECOMENDED - will clutter your drive
     	
 	Proband_ID	Members_of_Fam_ID	Relation
 	Prob01	FID01,FID02,FID03,FID04	Mother,Brother,Neighbor,Friend
@@ -124,7 +124,6 @@ sub help{
 	....	....	....
 	
 				\n\n";
-
 
 	exit($return);
 }
@@ -134,15 +133,39 @@ sub help{
 if (!defined $vcf){ print STDERR "\nNeed file info for the vcf file files!!\n\n"; help(1); }
 #if ($name ne "NA" and $snpSepfl ne "NA") { print STDERR "\nERROR:Can't use both -rel/-ids and  -snpSep: Please use  -snpSepFL and -snpSep\n\n"; help(1); }
 if (($rel ne "NA" or $name ne "NA") and $snpSepfl ne "NA") { print STDERR "\nERROR:Can't use both -rel/-ids and  -snpSep: Please use  -snpSepFL and -snpSep\n\n"; help(1); }
-if ($snpSep == undef and $snpSepfl ne "NA") { print STDERR "\nERROR:Can't use both -rel/-ids and  -snpSep: Please use  -snpSepFL and -snpSep\n\n"; help(1); }
+if ($snpSep == undef and $snpSepfl ne "NA") { print STDERR "\nERROR:Can't use both -rel/-ids and -snpSep: Please use  -snpSepFL and -snpSep\n\n"; help(1); }
 
 #if(! -e $vcf){ print STDERR "\n[Error] Could not find the x.bed file '$vcf'.\n"; exit(1); }
 
 
+###################  Setting build
+if ($build =~ /19/ or $build =~ /37/ ) { $bld = "hg19";}
+else { $bld = "hg38";}
+
+
+##################### Finding a ClinVar file.
+
+if (!defined $clinv) {
+	opendir my $dh, $Bin or die "Could not open '$Bin' for reading '$!'\n"; # open dir
+	while (my $thing = readdir $dh) {
+		if ($thing =~ /ClinVar/  and $thing =~ /Reassessed.txt/ and $thing =~ /$bld/) {
+        	$clinv = "$Bin/$thing";  ## same as #$clinv = `ls $Bin/ClinVar.$bld.*.Reassessed.txt*`; print "$clinv\n";}
+    	}	 	
+	}
+}
+
+close $dh;
+if (!defined $clinv and ! -e $clinv) { 
+	print STDERR "\n******* ERROR:   No modified ClinVar file found. Please run the following commands: *******\n\n"; 
+	print "./Run_CliVar_Re-annot.pl -build hg38 -get-URL" .
+			"./Run_CliVar_Re-annot.pl -build hg19 -get-URL\n\n";
+	help(1); 
+} 
+
 
 ####################### split multi-non reference allele info
 
-#### make tem directory
+#### make temp directory
 my (@l, $fold);
 
 	$fold = $vcf;
@@ -150,6 +173,7 @@ my (@l, $fold);
 	
 	system("mkdir $fold/");
 	system("cp $vcf $fold/");
+	
 	chdir "$fold";
 
 	
@@ -157,15 +181,13 @@ my (@l, $fold);
 
 if ($vcf =~ /gz$/){
 	open($fh1, "gunzip -c $vcf |") or die "gunzip $vcf: $!";
-
 }
 elsif ($vcf =~ /vcf|txt/) {
 	open $fh1, $vcf || die "Can't read file head.txt file '$vcf' [$!]\n";
-
 }
 else {print "ERROR: need a VCF or TXT file -- please make sure the file is ended in vcf, txt, vcf.gz or txt.gz\n\n";
 		help(1);
-	}
+}
 
 
 my $outfile_INTV = $output . ".vcf.InterVar.tmp";
@@ -222,9 +244,9 @@ while (<$fh1>) {
 		else {
 			print $out1 "$_\n";
 			print $out2 join "\t", @l[0..7], "GT\t0/1\n";
-			}
-		
+			}	
 }
+
 
 close $fh1;
 close $out1;
@@ -232,7 +254,7 @@ close $out2;
 	####### Snpeff annotation error code
 	
 if (!defined $snpeff_info ) {
-	print "\n\n********  PLEASE RUN AN ANNOTATION CODE SUCH AS SnpEff or VEP:\nhttps://pcingola.github.io/SnpEff/  ********\n\n";
+	print "\n\n********  PLEASE RUN AN ANNOTATION CODE SUCH AS SnpEff  ********\n\n";
 	help(1);
 	print "\n\n ---Error: No SnpEff annotation: \n###### PLEASE RUN AN ANNOTATION CODE SUCH AS SnpEff or VEP:\nhttps://pcingola.github.io/SnpEff/ -----  \n\n";
 	die;	
@@ -282,8 +304,6 @@ my ($highCount,@fam,@famRelat,$famCount,@allFams,@fullFamFl,$count);
 		}
 	
 
-
-
 	my $iCount = 0;	
 		for ($iCount; $iCount < scalar@fullFamFl-1 ;$iCount++) { # for alignment re-set the info for each family
 			@tmpInf = split "\t", $fullFamFl[$iCount];
@@ -316,17 +336,12 @@ foreach (@IDs) {  ## outline
 		$cases = $cases."	Sub$c.ID	Sub$c.note	Ind.$c.NormalAllele1	Ind.$c.NormalAllele2	Ind.$c.genotype	Ind.$c.Allele1Depth	Ind.$c.Allele2Depth";
 	
 	}	
-		
+		print "Found this person $_\n";
 }
 
 
 
 ###################### Run Annovar
-
-
-if ($build =~ /19/ or $build =~ /37/ ) { $bld = "hg19";}
-else { $bld = "hg38";}
-
 
 
 if ($vcfAnnov eq "NA") {
@@ -343,8 +358,7 @@ if ($vcfAnnov eq "NA") {
 
 
 
-
-print "running cleanup ................\n\n";
+print "running local cleanup ................\n\n";
 my $cmd = "rm $output*dropped";
 system("$cmd");
 
@@ -359,10 +373,13 @@ system("$cmd");
 
 
 ######################################## run InterVar
-
+	$cmd = "cp $Bin/config.ini ./";
+	system($cmd);
+	
+	
 if ($vcfInterV eq "NA") {
 	$cmd = "$python $Bin//Intervar.py -b $bld -i $outfile_INTV "
-	. " --input_type=VCF -o $output.intervFL --table_annovar=$Bin/table_annovar.pl "
+	. "--input_type=VCF -o $output.intervFL --table_annovar=$Bin/table_annovar.pl "
 	. "--convert2annovar=$Bin/convert2annovar.pl "
 	. "--annotate_variation=$Bin/annotate_variation.pl "
 	. "-d $Bin/humandb "
@@ -371,15 +388,15 @@ if ($vcfInterV eq "NA") {
 	print "$cmd\n\n";
 	system($cmd);
 	
-	$vcfInterV = "$output.intervFL.$bld"."_multianno.txt.intervar";	
+	my $vcfInterV = "$output.intervFL.$bld"."_multianno.txt.intervar";	
 }
 
 
 
 ##################################  process InterVar File
 
-
-open $fh, $vcfInterV || die "Can't read file head.txt1 file '$vcfInterV' [$!]\n";
+my $vcfInterV = "$output.intervFL.$bld"."_multianno.txt.intervar";	
+open $fh, $vcfInterV || die "Can't read file intervar file '$vcfInterV' [$!]\n";
 
 print "\nOpening intervar data $vcfInterV\n\n";
 my(%intv);
@@ -391,7 +408,7 @@ while (<$fh>) {
 	$l[13] =~ s/ InterVar: //;
 	$l[13] =~ s/ PVS1/\tPVS1/;
 	$intv{$itv}{$call} = $l[13]; # putting result into a memory
-
+#print "InterVar	--	$itv	$l[13]\n";
 }
 close $fh;
 
@@ -399,20 +416,10 @@ close $fh;
 
 ########################### Processing ClinVar
 
-if ($clinv) {next; }
-else {
-	opendir my $dh, $Bin or die "Could not open '$Bin' for reading '$!'\n"; # open dir
-	
-	while (my $thing = readdir $dh) {
-		if ($thing =~ /ClinVar/  and $thing =~ /Reassessed.txt/ and $thing =~ /$bld/) {
-        	$clinv = "$Bin/$thing";  ## same as #$clinv = `ls $Bin/ClinVar.$bld.*.Reassessed.txt*`; print "$clinv\n";}
-    	}	 	
-	}
-}
 
-close $dh;
 
-print "ClinVar file used -- $clinv\n";
+
+print "ClinVar file to be used -- $clinv\n";
 
 if ($clinv =~ /gz$/){
 	open($fh, "gunzip -c $clinv |") or die "gunzip $clinv: $!";
@@ -424,13 +431,39 @@ else {
 
 $header = <$fh>; chomp $header;
 
-my ($clinLoc,$clinCall,$calls);
+my ($clinLoc,$clinCall,$calls,$clinvarStars);
 my %clinHash;
 while (<$fh>) {
 	chomp;
 	#print "$_\n";
 	$_ =~ s/^chr//;
 	@l = split "\t", $_;
+	
+	#########################
+	###### Add star system to clinvar information
+	#########################
+	
+	if ($l[7] =~ /criteria_provided,_single_submitter/ or 
+		$l[7] =~ /criteria_provided,_conflicting_interpretations/ ) {
+		$clinvarStars = "*";
+	}
+	elsif ($l[7] =~ /criteria_provided,_multiple_submitters/ ) {
+		$clinvarStars = "**";
+	}
+	elsif ($l[7] =~ /reviewed_by_expert_panel/ ) {
+		$clinvarStars = "***";
+	}
+	elsif ($l[7] =~ /practice_guideline/ ) {
+		$clinvarStars = "****";
+	}
+	else {$clinvarStars = "no_stars";}
+	
+	#########################
+	###### Grab the  $clinvarStars clinvar star info
+	#########################
+	
+	$l[11] = "$l[11]|$clinvarStars";
+	
 	$clinLoc = "chr$l[0]-$l[1]-$l[3]-$l[4]";
 	$clinCall = join "\t", @l[9..21];
 	$clinHash{$clinLoc}{$calls} = $clinCall;
@@ -484,14 +517,14 @@ print "opening $vcfAnnov \nOpening $outfile ......................\n\n";
 
 my $chng = "Otherinfo1	Otherinfo2	Otherinfo3	$vcf_info";
 my $header = <$fh1>;
-$header =~ s/Otherinfo/$chng/;
+$header =~ s/Otherinfo1/$chng/;
 $header =~ s/\./_/g;
 $header =~ s/\n//g;
 
 ###################### print header
 
 # print ClinVar header Info
-my $clinvHeader = "#VariationID	Hyperlink	ClinVar_Stars	New_ClinSig_Call	Call_descrip	Alt_ClinSig_call	Alt_Call_descrip	Alternant_flag_ExpertPanel	Alternant_flag_Badge	Alternant_flag_NonBadge	BadgeLabClinSig=Num	ReviewPanle=Num	NonBadgeLabClinSig=Num";
+my $clinvHeader = "#VariationID	Hyperlink	Evidence_of_P/LP|ClinVar_star_system	New_ClinSig_Call	Call_descrip	Alt_ClinSig_call	Alt_Call_descrip	Alternant_flag_ExpertPanel	Alternant_flag_Badge	Alternant_flag_NonBadge	BadgeLabClinSig=Num	ReviewPanle=Num	NonBadgeLabClinSig=Num";
 
 # print InterVar and the rest of the header Info
 
@@ -500,13 +533,11 @@ print $out "Hugo_symbol	Chromosome	Loc	Reference	Alternant_alleles	Overall_Varia
 		.	"De_novo_info	LOF_info	NMD_info	$snpeff_info	$header\n";
 		
 	$snpeff_info =~ s/\./_/g;	
-#print $outPVS "#Uploaded_variation	SYMBOL	Feature	CANONICAL	PICK	Consequence	HGVSc	HGVSp	HGVSg	EXON	INTRON\n";
 #######################
 
 #print "$header\n";
 
 my ($xyz,$xyy) = 0; # Set counters
-
 
 ############################# creating AVF file
 
@@ -591,11 +622,9 @@ while (<$fh1>) {
 		
 	###################### Add ClinVar INFO
 	$h{Chr} =~ s/^chr//;
-	#$IDclinv = "chr$h{Chr}-$h{POS}-$h{REF}-$h{ALT}";
 	$IDclinv = "chr$h{Chr}-$h{POS}-$h{REF}-$currentALT";
 
 	if (exists $clinHash{$IDclinv}) {
-		### $clinHash{$clinLoc}{$calls}		
 		print $out "$clinHash{$IDclinv}{$calls}\t";	
 #print $tst1 "New output 		$IDclinv\n";
 	}
@@ -610,7 +639,7 @@ while (<$fh1>) {
 	
 	$itvs = "chr$h{Chr}-$h{Start}-$h{Ref}>$h{Alt}";
 	$itvs1 = "chr$h{Chr}-$h{Start}-$h{Ref}>0";
-	#print "$itvs\n";
+	#print "$itvs	$itvs1\n";
 	if (exists $intv{$itvs}  ) {
 		print $out "$intv{$itvs}{$call}	$rel	";
 	}
@@ -628,23 +657,19 @@ while (<$fh1>) {
 	############################### Breakdown of all alleles
 	$c = 0;
 	$all_alleles = "$h{REF},$h{ALT}";
-	#print "ALTallele-alleles $h{ALT}		All alleles -- $all_alleles\n";	
-	#$all_alleles = "$h{REF},$h{ALT}";
 	@alleles = split ',', $all_alleles; # all the alleles in for this locus.
-
-	@qqq = split "\t", $header;
 	
 	my $IDsWithAltAllele;
 	
 	foreach $id (@IDs) {
 		$idy=0;
 		
-		@allelect = split '\:', $h{$id}; #Set sample info parent2 -- allele numb	
-		%dept = map { $_ => $allelect[$idy++]} split( '\:', $h{FORMAT} ); # map sample info to hash for the indiv
-		
-		@tmp = split '/', $dept{GT}; # get genotype info
+		@allelect = split ':', $h{$id}; #Set sample info parent2 -- allele numb	
+		%dept = map { $_ => $allelect[$idy++]} split( ':', $h{FORMAT} ); # map sample info to hash for the indiv
+#print "$id	$h{FORMAT}	Genotype	$dept{GT}	Depth at each allele 	$dept{AD}\n";
+		@tmp = split /\/|\|/, $dept{GT}; # get genotype info
 		@tmp1 = split ',', $dept{AD}; # get allele depth at each allele
-		#print "ID = $id		$h{FORMAT}	$h{$id}\n";
+#print "ID = $id		$h{FORMAT}	$h{$id}\n";
 		############################  Print individual and allele info for each individual
 		print $out "$id	$relat[$c]	$alleles[$tmp[0]]	$alleles[$tmp[1]]	$dept{GT}	$tmp1[$tmp[0]]	$tmp1[$tmp[1]]	";
 		#############################
@@ -715,15 +740,15 @@ close $autoPVS;
 %intv = undef;
 
 my $refbld;
-my $grch;
-if ($build =~ /19/ or $build =~ /37/ ) { $refbld = 19; $grch = 37;}
-else { $refbld = 38; $grch = 38;}
+my $hgbuild;
+if ($build =~ /19/ or $build =~ /37/ ) { $refbld = 19; $hgbuild = 37;}
+else { $refbld = 38;}
 
 
 
 
-$cmd = "$vep --offline --refseq --use_given_ref " .
-    "--assembly \"GRCh"."$grch\" " .
+$cmd = "$vep --offline --refseq --use_given_ref --cache " .
+    "--assembly \"GRCh"."$hgbuild\" " .
     "--fork 4 " .
     "--canonical " . 
     "--flag_pick " .
@@ -748,12 +773,8 @@ print "Running VEP\n\n";
 system("$cmd");
 
 
-$outfile = "$Bin/pvs/config.ini";
-open($out, '>', $outfile) or die "Can't read file '$outfile' [$!]\n";
 
-
-
-print $out "
+my $configFL = "
 [DEFAULT]
 
 ref = $Bin/pvs/data/hg$refbld".".fa
@@ -768,7 +789,25 @@ gene_trans = $Bin/pvs/data/clinvar_trans_stats_20200106.tsv
 gene_alias = $Bin/pvs/data/hgnc.symbol.previous.tsv
 
 ";
+
+
+
+$outfile = "$Bin/pvs/config.ini";
+open($out, '>', $outfile) or die "Can't read file '$outfile' [$!]\n";
+
+
+
+print $out "$configFL";
 close $out;
+
+
+$outfile = "config.ini";
+open($out, '>', $outfile) or die "Can't read file '$outfile' [$!]\n";
+
+print $out "$configFL";
+close $out;
+
+
 
 
 
@@ -791,17 +830,17 @@ system("$cmd");
 
 ############################### Building a condensed file ################################
 
-
+#my $outf = $output;
 
 if ($shortfl) {
 	
 	
 	my $headCount;
-	$longfl = "$output.$bld.avf.tmp.$today.avp";
+	$longfl = "$output.$bld.avf.tmp.$today.avf";
 	open $fh, $longfl || die "Can't read the full output file '$longfl' [$!]\n";
 	
 	#### create the outfile
-	$outfile = "$output.$bld.$today.condensed_file.avp";
+	$outfile = "$output.$bld.$today.condensed_file.avf";
 	open($out, '>', $outfile) or die "Can't read file '$outfile' [$!]\n";
 	
 	my $longHDR = <$fh>; chomp $longHDR ; $longHDR =~ s/_//g; $longHDR =~ s/-//g; $longHDR =~ s/\.//g;
@@ -839,14 +878,14 @@ close $out;
 
 if ($snpSep) {
 
-	$longfl = "$output.$bld.avf.tmp.$today.avp";
+	$longfl = "$output.$bld.avf.tmp.$today.avf";
 	open $fh, $longfl || die "Can't read the full output file '$longfl' [$!]\n";
 	
 	#### create the outfile
-	$outfile = "$output.$bld.avf.tmp.$today.snpBreakdown.avp";
+	$outfile = "$output.$bld.$today.snpBreakdown.avf";
 	open($out, '>', $outfile) or die "Can't read file '$outfile' [$!]\n";
 	
-	my $longHDR = <$fh>; chomp $longHDR ; $longHDR =~ s/_//g; $longHDR =~ s/-//g; $longHDR =~ s/\.//g;
+	my $longHDR = <$fh>; chomp $longHDR ; #$longHDR =~ s/_//g; $longHDR =~ s/-//g; $longHDR =~ s/\.//g;
 	
 	@l = split "\t", $longHDR;
 	$count = 0;
@@ -892,8 +931,8 @@ if ($snpSep) {
 			@alleles = split ',', "$h{REF},$h{ALT}";			
 			@allelect = split '\:', $h{$IDs[0]}; #Set sample info parent2 -- allele numb
 			@tmp = split '/', $allelect[0]; # get genotype info	
- 
-			if ($alleles[$tmp[0]] ne $h{Alternantalleles} and $alleles[$tmp[1]] ne $h{Alternantalleles}) { next;}
+ 				my $Alternantalleles = "Alternant_alleles";
+			if ($alleles[$tmp[0]] ne $h{$Alternantalleles} and $alleles[$tmp[1]] ne $h{$Alternantalleles}) { next;}
 		
 			print $out join "\t", @snp[0..$intvSupp], "\t";
 				$c = 0;
@@ -919,11 +958,8 @@ if ($snpSep) {
 					
 		
 				}
-	
 
-			print $out  join "\t", @snp[$Denvinfo..$#snp], "\n";
-				
-				
+			print $out  join "\t", @snp[$Denvinfo..$#snp], "\n";			
 				
 		}		
 		
@@ -938,39 +974,16 @@ if ($snpSep) {
 print "\n\n###################### CLEAN UP ALL TMP FILES #################\n\n";
 
 
-$cmd = "mv *avp ../";
+$cmd = "mv *avf ../";
 system("$cmd");
 
 
-
-
-system("rm *filtered");
-system("rm *dropped");
-system("rm *function");
-system("rm *log");
+#if ($KeepFold) {;}
+unless ($KeepFold) {   print "clean up\n $: rm -rf $fold\n"; chdir '..'; system("rm -rf $fold");   }
 
 
 
-
-
-
-
-
-
-
-=cut
-
-
-
-chdir ($cwd);
-
-$cmd = "rm -rf $fold";
-system("$cmd");
-
-=cut
-
-
-
+print "\n\n###################### PROCESS COMPLETE #################\n\n";
 
 
 

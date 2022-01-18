@@ -80,6 +80,11 @@ while (<$fh>) {
 			$k =~ s/^CLNSIG=//;
 			$prev = $k;
 		}
+		
+		if ($k =~ /^CLNSIG/) {
+			$k =~ s/^CLNSIG=//;
+			$prev = $k;
+		}
 	}
 	
 	if (exists $h{$l[2]}) {

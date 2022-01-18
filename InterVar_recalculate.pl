@@ -6,7 +6,23 @@ my $today = strftime "%m-%d-%Y", localtime; # today's date-on output
 use FindBin '$Bin'; # full path of bin -- $Bin
 
 
-$filename = $ARGV[1];  # autopvs1 file
+sub help{
+	my $return = shift;
+	$return = 0 if(!defined $return);
+	print STDERR "
+	This program is designed to convert individual vcfs to annotated file MAF equivelent format.
+	We call this format AVF (annotatated Variant File). If you see this messege there may be an issue with the input files. 
+	";
+	
+	print STDERR " Usage: $0  <your.pvs1> <your.avf.temp> \n\n";
+	print STDERR "ERROR: One of the files required is missing - most likely not generated ";
+
+
+	exit($return);
+}
+
+
+my $filename = $ARGV[1];  # autopvs1 file
 
 if ($filename =~ /gz$/){
 	open($fh, "gunzip -c $filename |") or die "gunzip $filename: $!";
@@ -21,44 +37,28 @@ while (<$fh>) {
 	@l = split "\t", $_;
 	$l[0] = uc $l[0];
 	$locTRG{$l[0]}{$ResPVS1} = $l[-1];
+	$locTRG{$l[0]}{$criter} = $l[-2];
 	
 }
-
-
-
-#$filename = "/Users/vaksmanz/Desktop/NBL_TARGET/P_LP_assessment/Vars_P-LP_9-14-2020.txt";   # intervar
 
 $filename = $ARGV[0]; # temp AVF file.
 
 
-if ($filename =~ /gz$/){
-	open($fh, "gunzip -c $filename |") or die "gunzip $filename: $!";
-}
-else {
-	open $fh, $filename || die "Can't read file head.txt file '$filename' [$!]\n";
-}
+if ($filename =~ /gz$/){   open($fh, "gunzip -c $filename |") or die "gunzip $filename: $!";   }
+else {   open $fh, $filename || die "Can't read file head.txt file '$filename' [$!]\n";   }
 
-$filename =~ s/.tmp.gz|.vcf.gz//g;
+$filename =~ s/avf.tmp.gz$|avf.vcf.gz//;
+$filename =~ s/avf.tmp$//;
 
-
-$outfile = "$filename.$today.avp";
-
-#$outfile =  "/Users/vaksmanz/Desktop/NBL_TARGET/P_LP_assessment/Vars_P-LP_9-14-2020.txt.New_clinVar.txt";
+$outfile = "$filename.$today.avf";
 open(my $out, '>', $outfile) or die "Can't read file '$outfile' [$!]\n";
 
 
-$outfile1 = "$filename.$today.Vars_P_LP.avp";
-
-#$outfile1 =  "/Users/vaksmanz/Desktop/NBL_TARGET/P_LP_assessment/Vars_P-LP_9-14-2020.txt.New_clinVar.9-14-2020.P_LP.txt";
+$outfile1 = "$filename.$today.Vars_P_LP.avf";
 open(my $out1, '>', $outfile1) or die "Can't read file '$outfile1' [$!]\n";
 
 
-
-
-
 $header = <$fh>; chomp $header; $header =~ s/IntrvarRerun/IntrvarRerunRes	IntrvarRerunSupport/;	
-#print  "L-LP_Call_final	Reasoning_for_call	InterVar_recount_result	assertion_criteria	Recount_InterVar_support	PP5	Autopvs1_result	";
-#print  "#VariationID	Hyperlink	Evidence_of_P/LP	Var_call_BadgeLab	Call_descrip	Alternant_flag_ExpertPanel	Alternant_flag_Badge	Alternant_flag_NonBadge	BadgeLabClinSig=Num	ReviewPanle=Num	NonBadgeLabClinSig=Num	$header\n";
 
 print $out  "L-LP_Call_final	Reasoning_for_call	InterVar_recount_result	assertion_criteria	Recount_InterVar_support	PP5	PVS1_Correction	";
 #print  $out "#VariationID	Hyperlink	Evidence_of_P/LP	Var_call_BadgeLab	Call_descrip	Alternant_flag_ExpertPanel	Alternant_flag_Badge	Alternant_flag_NonBadge	BadgeLabClinSig=Num	ReviewPanle=Num	NonBadgeLabClinSig=Num	$header\n";
@@ -75,24 +75,18 @@ while (<$fh>) {
 	@l = split "\t", $_;	
 
 	my @res;
-	my $temp = "NA";
-
-	my @res;
-	my $temp = "NA";
+	#my $temp = "NA";
 	
-	my $clinvR = join "\t", @l[7..19];
-	$temp = "$_";
-	#$temp = "$clinvR	$_";
+	#my $clinvR = join "\t", @l[7..19];
+	#$temp = "$_";
 
 
-	my $return = rerun_InterVar($l[21],$temp);
-	my $ret1 = "$return	$temp";
+	my $return = rerun_InterVar($l[21],$_);
+	my $ret1 = "$return	$_";
 	
 	my @res = split "\t", $ret1;
 	my $calls = "NA";
 	
-	
-
 	
 	
 	if ($res[15] =~ /Benign|benign|Uncertain|athogenic/) { ## check ClinVar
@@ -119,18 +113,16 @@ while (<$fh>) {
 	$calls =~ s/Likely benign/Likely_benign/;
 	
 	print $out "$calls	$ret1\n";
+	#print "$calls	$ret1\n";
 
 	if ($calls  =~ /^Pathogenic|^Likely pathogenic|^Likely_pathogenic/){
-		#print "$qrun	$qrun1	$calls	$ret1\n";
+		
 		print $out1 "$calls	$ret1\n";
+		#print "$calls	$ret1\n";
 	}
 	
 }
 
-
-
-
-################################################################
 ################################################################
 ##################################### SUBs
 ##############################################################
@@ -138,8 +130,7 @@ while (<$fh>) {
 
 sub rerun_InterVar() {
 
-	($INTV,$temp) = @_;
-
+	my ($INTV,$temp) = @_;
 	$INTV =~ s/, /,/g;
 	$INTV =~ s/^ //;
 	@interv = split " ", $INTV;
@@ -199,55 +190,51 @@ sub rerun_InterVar() {
 	$l[1] =~ s/chr//;
 	$qrun = "$l[1]-$l[2]-$l[3]-$l[4]";
 			
-
-	
-	if (exists $locTRG{$qrun}) {
-		#print "\n\nRes1	$locTRG{$qrun}{$ResPVS1}\n";
-		}
 	
 	#if (exists $locTRG{$qrun} and $locTRG{$qrun}{$ResPVS1} !~ /NF2|NF4|SS2|SS4|SS7|DEL3|DEL5|DEL9|DUP2|DUP4|DUP5|IC5/) {
-	if (exists $locTRG{$qrun} and $locTRG{$qrun}{$ResPVS1} =~ /NF1|SS1|DEL1|DEL2|DUP1|IC1/) {
-		$autoPV = "$locTRG{$qrun}{$ResPVS1}";
+	if ($locTRG{$qrun}{$criter} !~ /Unset/ and $locTRG{$qrun}{$ResPVS1} =~ /NF1|SS1|DEL1|DEL2|DUP1|IC1/) {
+		$autoPV = "$locTRG{$qrun}{$ResPVS1}:Set";
 		$PVS1 = 1;		
 	}
-	elsif (exists $locTRG{$qrun} and $locTRG{$qrun}{$ResPVS1} =~ /NF3|NF5|SS3|SS5|SS8|SS10|DEL8|DEL6|DEL10|DUP3|IC2/) {
+	elsif ($locTRG{$qrun}{$criter} =~ /Unset/ and $locTRG{$qrun}{$ResPVS1} =~ /NF1|SS1|DEL1|DEL2|DUP1|IC1/) {
+		$autoPV = "$locTRG{$qrun}{$ResPVS1}:Unset-PVS1";
+		#$autoPV = "Strong:Unset-PVS1";
+		$PVS1 = 0;	
+		$PS = $PS+1;		
+	}
+	elsif ( $locTRG{$qrun}{$ResPVS1} =~ /NF3|NF5|SS3|SS5|SS8|SS10|DEL8|DEL6|DEL10|DUP3|IC2/) {
 		$PVS1 = 0;
 		$PS = $PS+1;
-		$autoPV = "$locTRG{$qrun}{$ResPVS1}";
+		$autoPV = "$locTRG{$qrun}{$ResPVS1}:Unset-PVS1";
 	}
-	elsif (exists $locTRG{$qrun} and $locTRG{$qrun}{$ResPVS1} =~ /NF6|SS6|SS9|DEL7|DEL11|IC3/) {
+	elsif ($locTRG{$qrun}{$ResPVS1} =~ /NF6|SS6|SS9|DEL7|DEL11|IC3/) {
 		$PVS1 = 0;
 		$PM = $PM+1;
-		$autoPV = "$locTRG{$qrun}{$ResPVS1}";
-		
+		$autoPV = "$locTRG{$qrun}{$ResPVS1}:Unset-PVS1";
 	}
-	elsif (exists $locTRG{$qrun} and $locTRG{$qrun}{$ResPVS1} =~ /NF6|SS6|DEL7|DEL11|IC3/) {
+	elsif ($locTRG{$qrun}{$ResPVS1} =~ /NF6|SS6|DEL7|DEL11|IC3/) {
 		$PVS1 = 0;
 		$PP = $PP+1;
-		$autoPV = "$locTRG{$qrun}{$ResPVS1}";
-	}
-	
-	
-	elsif (exists $locTRG{$qrun} and $locTRG{$qrun}{$ResPVS1} =~ /IC4/) {
-		$autoPV = "$locTRG{$qrun}{$ResPVS1}";
+		$autoPV = "$locTRG{$qrun}{$ResPVS1}:Unset-PVS1";
+	}	
+	elsif ($locTRG{$qrun}{$ResPVS1} =~ /IC4/) {
+		$autoPV = "$locTRG{$qrun}{$ResPVS1}:Unset-PVS1";
 		$PVS1 = 0;
 		$PP = $PP+1;
-		$autoPV = "$locTRG{$qrun}{$ResPVS1}";
-
 	}
-	
+	elsif (exists $locTRG{$qrun} and $locTRG{$qrun}{$ResPVS1} !~ /NF2|NF4|SS2|SS4|SS7|DEL3|DEL5|DEL9|DUP2|DUP4|DUP5|IC5/) {
+		$PVS1 = 0;
+		$autoPV = "$locTRG{$qrun}{$ResPVS1}:Unset-PVS1";
+	}
 	elsif (exists $locTRG{$qrun} and $locTRG{$qrun}{$ResPVS1} =~ /na|NF0/) {
-		$autoPV = "$locTRG{$qrun}{$ResPVS1}";
+		$autoPV = "$locTRG{$qrun}{$ResPVS1}:Unset-PVS1";
 		$PVS1 = 0;
 		
-		$autoPV = "$locTRG{$qrun}{$ResPVS1}";
+		$autoPV = "$locTRG{$qrun}{$ResPVS1}:Unset-PVS1";
 
 	}
-
 	elsif (exists $locTRG{$qrun} ) {
-		$autoPV = "$locTRG{$qrun}{$ResPVS1}";
-		
-
+		$autoPV = "$locTRG{$qrun}{$ResPVS1}:Unset-PVS1";
 	}
 	
 	#else {$autoPV = "NA";}
@@ -309,8 +296,6 @@ Likely pathogenic
 	
 	elsif ($PM > 0 and $PP > 3) {$PLP = "Likely_pathogenic	criteria 6"; }
 	
-	
-	
 =cut 
 Benign
 	(i) 1 Stand-alone (BA1) OR
@@ -344,8 +329,6 @@ Uncertain  significance
 	#print $out "$outcome	PVS1=$PVS1 PS=$PS PM=$PM PP=$PP BP=$BP BS=$BS BA1=$BA1	$inv1[4]	$_";
 	$return = "$outcome	PVS1=$PVS1 PS=$PS PM=$PM PP=$PP BP=$BP BS=$BS BA1=$BA1	$ii	$autoPV";
 	return $return ;
-
-	
 	
 	
   }

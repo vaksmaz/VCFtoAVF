@@ -13,7 +13,7 @@
 use Cwd 'abs_path';
 use FindBin '$Bin'; # full path of bin -- $Bin
 use Getopt::Long qw(:config no_ignore_case);
-use LWP::Simple;
+#use LWP::Simple;
 use Cwd;
 use POSIX qw(strftime);
 my $today = strftime "%m-%d-%Y", localtime; # today's date-on output
@@ -151,7 +151,7 @@ if ($geturl) {
 
 # Reset_submission_summery_matrix.step1.pl - first part
 
-$cmd = "$Bin/Reset_submission_summery_matrix.step1.pl $Sub";
+$cmd = "$Bin/Reset_submission_summery_matrix.step1.pl $Sub1";
 print "\n\n	Running command ...........\n	$cmd\n\n";
 system("$cmd");
 
